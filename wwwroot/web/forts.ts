@@ -805,26 +805,30 @@ class BattleField {
     encode_display_data_state():number[]
     {
         const file_size_header_size = 1;
+        const game_id_and_host_info = 2
         const fort_count_size = 1;
         const unit_count_size = 1;
         const barrier_count_size = 1;
-        const file_size = /*2 * this.traveling_units.length + */this.barriers.length + 2 * this.forts.length + 
+        const file_size = /*2 * this.traveling_units.length + */game_id_and_host_info + this.barriers.length + 2 * this.forts.length + 
             file_size_header_size + fort_count_size + unit_count_size + barrier_count_size;
         //file header total file length, 
         //fort info fort count, then for each fort owning faction in 4 bits, and count units remaining 28
         //then traveling unit info 
         //total units then per unit 14 bits for x and y, and 3 bits for faction, and 1 bit for whether or not to render
         //barriers 14 bits for x and y, 4 bits for faction
-        const data:number[] = [];
-        for(let i = 0; i < file_size; i++)
+        const data = new Uint32Array(file_size);
+        /*for(let i = 0; i < file_size; i++)
         {
             data.push(-1);
-        }
+        }*/
+
         const faction_map = this.get_faction_index_map();
         const fort_map = this.get_fort_index_map();
         data[0] = file_size;
-        data[1] = this.forts.length;
-        let i = 2;
+        data[1] = this.game.session.game_id;
+        data[2] = this.game.session.id;
+        data[3] = this.forts.length;
+        let i = 4;
         for(let j = 0; j < this.forts.length; j++, i++)
         {
             const norm = this.normalize_as_int([this.forts[j].x, this.forts[j].y]);
@@ -856,7 +860,9 @@ class BattleField {
         //this.traveling_units = [];
         this.barriers = [];
         const file_size = data[0];
-        let i = 1;
+        this.game.session.game_id = data[1];
+        data[2] = this.game.session.id;
+        let i = 3;
         const forts_count = data[i++];
         for(let i = 0; i < this.forts.length; i++)
         {
@@ -1456,7 +1462,7 @@ class Session {
     async post_game_state():Promise<any>
     {
         const game = {state:this.local_game.currentField.encode_display_data_state(), game_id:this.game_id, host_id:this.id};
-        return await logToServer(game, "/save_game_state");
+        return await logBinaryToServer(game, "/save_game_state");
     }
     post_moves(moves:Move[]):void
     {
