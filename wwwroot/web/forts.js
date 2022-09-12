@@ -128,11 +128,11 @@ class Unit extends SquareAABBCollidable {
         }
         else {
             const delta = this.faction.unit_travel_speed * delta_time * 1 / 1000;
-            const dy = -this.mid_y() + this.targetFort.mid_y();
-            const dx = -this.mid_x() + this.targetFort.mid_x();
+            const dy = (-this.mid_y() + this.targetFort.mid_y()) * 1 / this.faction.battleField.host_vertical_ratio;
+            const dx = (-this.mid_x() + this.targetFort.mid_x()) * 1 / this.faction.battleField.host_horizontal_ratio;
             const dist = Math.sqrt(dy * dy + dx * dx);
-            const norm_dy = dy / dist * this.faction.battleField.host_vertical_ratio;
-            const norm_dx = dx / dist * this.faction.battleField.host_horizontal_ratio;
+            const norm_dy = dy / dist;
+            const norm_dx = dx / dist;
             let ndy = delta * norm_dy;
             let ndx = delta * norm_dx;
             if (ndy * ndy > dy * dy || ndx * ndx > dx * dx) {
