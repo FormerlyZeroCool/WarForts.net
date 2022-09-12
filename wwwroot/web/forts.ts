@@ -197,8 +197,8 @@ class Unit extends SquareAABBCollidable implements Attackable {
             const dy:number = -this.mid_y() + this.targetFort.mid_y();
             const dx:number = -this.mid_x() + this.targetFort.mid_x();
             const dist = Math.sqrt(dy*dy + dx*dx);
-            const norm_dy = dy / dist;
-            const norm_dx = dx / dist;
+            const norm_dy = dy / dist * this.faction.battleField.host_vertical_ratio;
+            const norm_dx = dx / dist * this.faction.battleField.host_horizontal_ratio;
             let ndy = delta * norm_dy;
             let ndx = delta * norm_dx;
             if (ndy * ndy > dy * dy || ndx * ndx > dx * dx) {
@@ -730,6 +730,8 @@ class BattleField {
 
     max_traveling_units:number;
     max_units_per_cell:number;
+    host_horizontal_ratio:number;
+    host_vertical_ratio:number;
     //has all the forts
     //forts know what faction owns them, how many units they have
     //units know what faction they belong to from there they derive their attack/defense
@@ -737,6 +739,8 @@ class BattleField {
     //factions have offense/defense stats all owned forts take on, and attacking units take on
     constructor(game:Game, dimensions:number[], factions:Faction[], fort_dim:number, fort_count:number)
     {
+        this.host_horizontal_ratio = 1;
+        this.host_vertical_ratio = 1;
         this.game = game;
         this.max_traveling_units = 1200;
         this.max_units_per_cell = 10;
@@ -805,11 +809,13 @@ class BattleField {
     encode_display_data_state():number[]
     {
         const file_size_header_size = 1;
-        const game_id_and_host_info = 2
+        const game_id_and_host_info = 2;
+        const screen_dim = 1;
         const fort_count_size = 1;
         const unit_count_size = 1;
         const barrier_count_size = 1;
-        const file_size = /*2 * this.traveling_units.length + */game_id_and_host_info + this.barriers.length + 2 * this.forts.length + 
+        const faction_data:number = this.factions.length;
+        const file_size = /*2 * this.traveling_units.length + */faction_data + screen_dim + game_id_and_host_info + this.barriers.length + 2 * this.forts.length + 
             file_size_header_size + fort_count_size + unit_count_size + barrier_count_size;
         //file header total file length, 
         //fort info fort count, then for each fort owning faction in 4 bits, and count units remaining 28
@@ -825,10 +831,11 @@ class BattleField {
         const faction_map = this.get_faction_index_map();
         const fort_map = this.get_fort_index_map();
         data[0] = file_size;
-        data[1] = this.game.session.game_id;
-        data[2] = this.game.session.id;
-        data[3] = this.forts.length;
-        let i = 4;
+        data[1] = (this.dimensions[2] << 16) | this.dimensions[3];
+        data[2] = this.game.session.game_id;
+        data[3] = this.game.session.id;
+        data[4] = this.forts.length;
+        let i = 5;
         for(let j = 0; j < this.forts.length; j++, i++)
         {
             const norm = this.normalize_as_int([this.forts[j].x, this.forts[j].y]);
@@ -853,6 +860,11 @@ class BattleField {
             const norm = this.normalize_as_int([barrier.x, barrier.y]);
             data[i] = (faction_map.get(barrier.faction)! << 28) | (norm[0] << 14) | norm[1];
         }
+        for(let j = 0; j < this.factions.length; j++, i++)
+        {
+            const faction = this.factions[j];
+            data[i] = (faction.unit_travel_speed << 16) | (faction.fort_defense << 8) | (faction.unit_defense);
+        }
         return data;
     }
     load_encoded_display_state(data:number[]):void
@@ -860,9 +872,13 @@ class BattleField {
         //this.traveling_units = [];
         this.barriers = [];
         const file_size = data[0];
-        this.game.session.game_id = data[1];
-        data[2] = this.game.session.id;
-        let i = 3;
+        const host_width = (data[1] >> 16)  & ((1 << 16) - 1);
+        const host_height = data[1] & ((1 << 16) - 1);
+        this.host_horizontal_ratio = host_width / this.dimensions[2];
+        this.host_vertical_ratio =  host_height / this.dimensions[3];
+        this.game.session.game_id = data[2];
+        data[3] = this.game.session.id;
+        let i = 4;
         const forts_count = data[i++];
         for(let i = 0; i < this.forts.length; i++)
         {
@@ -925,6 +941,14 @@ class BattleField {
             const y = data[i] & ((1 << 14) - 1);
             const point = this.normals_to_point([x, y]);
             this.barriers.push(new Barrier(this, this.factions[faction], point[0], point[1]));
+        }
+        
+        for(let j = 0; j < this.factions.length; j++, i++)
+        {
+            const faction = this.factions[j];
+            faction.unit_travel_speed = data[i] >> 16 & ((1 << 16) - 1);
+            faction.fort_defense = data[i] >> 8 & ((1 << 8) - 1);
+            faction.unit_defense = data[i] & ((1 << 8) - 1);
         }
     }
     width():number
