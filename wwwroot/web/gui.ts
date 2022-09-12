@@ -1657,7 +1657,7 @@ export class GuiTextBox implements GuiElement {
                     }
                 }
                 this.drawInternalAndClear();
-
+                break;
             }
         }
     }

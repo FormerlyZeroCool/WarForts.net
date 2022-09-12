@@ -201,6 +201,11 @@ export async function fetchImage(url) {
     img.src = URL.createObjectURL(await (await fetch(url)).blob());
     return img;
 }
+export async function logBinaryToServer(data, path) {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", path, false);
+    xhr.send(data);
+}
 export async function logToServer(data, path) {
     const res = await fetch(path, {
         method: "POST",

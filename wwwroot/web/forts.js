@@ -602,25 +602,29 @@ class BattleField {
     }
     encode_display_data_state() {
         const file_size_header_size = 1;
+        const game_id_and_host_info = 2;
         const fort_count_size = 1;
         const unit_count_size = 1;
         const barrier_count_size = 1;
-        const file_size = /*2 * this.traveling_units.length + */ this.barriers.length + 2 * this.forts.length +
+        const file_size = /*2 * this.traveling_units.length + */ game_id_and_host_info + this.barriers.length + 2 * this.forts.length +
             file_size_header_size + fort_count_size + unit_count_size + barrier_count_size;
         //file header total file length, 
         //fort info fort count, then for each fort owning faction in 4 bits, and count units remaining 28
         //then traveling unit info 
         //total units then per unit 14 bits for x and y, and 3 bits for faction, and 1 bit for whether or not to render
         //barriers 14 bits for x and y, 4 bits for faction
-        const data = [];
-        for (let i = 0; i < file_size; i++) {
+        const data = new Uint32Array(file_size);
+        /*for(let i = 0; i < file_size; i++)
+        {
             data.push(-1);
-        }
+        }*/
         const faction_map = this.get_faction_index_map();
         const fort_map = this.get_fort_index_map();
         data[0] = file_size;
-        data[1] = this.forts.length;
-        let i = 2;
+        data[1] = this.game.session.game_id;
+        data[2] = this.game.session.id;
+        data[3] = this.forts.length;
+        let i = 4;
         for (let j = 0; j < this.forts.length; j++, i++) {
             const norm = this.normalize_as_int([this.forts[j].x, this.forts[j].y]);
             data[i] = (faction_map.get(this.forts[j].faction) << 28) | (norm[0] << 14) | norm[1];
@@ -649,7 +653,9 @@ class BattleField {
         //this.traveling_units = [];
         this.barriers = [];
         const file_size = data[0];
-        let i = 1;
+        this.game.session.game_id = data[1];
+        data[2] = this.game.session.id;
+        let i = 3;
         const forts_count = data[i++];
         for (let i = 0; i < this.forts.length; i++) {
             this.forts[i].units = [];
@@ -1108,7 +1114,7 @@ class Session {
     }
     async post_game_state() {
         const game = { state: this.local_game.currentField.encode_display_data_state(), game_id: this.game_id, host_id: this.id };
-        return await logToServer(game, "/save_game_state");
+        return await logBinaryToServer(game, "/save_game_state");
     }
     post_moves(moves) {
         logToServer(moves, "/register_moves");
@@ -1214,7 +1220,7 @@ class Game {
         this.server_sync = new ServerSync(this.session);
         this.background = new ImageContainer("background", `./images/${"background"}.png`);
         this.dev_mode = false;
-        this.joint_attack_mode = false;
+        this.joint_attack_mode = true;
         this.regular_control = true;
         this.difficulty = 0;
         this.wins = 0;
@@ -1264,7 +1270,7 @@ class Game {
         this.touch_listener.registerCallBack("touchmove", (e) => end_selection_possible(e) && this.joint_attack_mode && this.regular_control, (event) => {
             const nearest_fort = this.currentField.find_nearest_fort(event.touchPos[0], event.touchPos[1]);
             this.end_touch_fort = nearest_fort;
-            if (nearest_fort.faction === this.currentField.player_faction())
+            if (nearest_fort.faction === this.currentField.player_faction() && nearest_fort.check_collision(this.get_cursor()))
                 this.start_touch_forts.push(nearest_fort);
         });
         this.touch_listener.registerCallBack("touchmove", (e) => end_selection_possible(e) && !this.joint_attack_mode && this.regular_control, (event) => {
@@ -1273,22 +1279,24 @@ class Game {
         });
         this.touch_listener.registerCallBack("touchend", (e) => end_selection_possible(e) && this.regular_control, (event) => {
             this.end_touch_fort = this.currentField.find_nearest_fort(event.touchPos[0], event.touchPos[1]);
-            const moves = [];
-            for (let i = 0; i < this.start_touch_forts.length; i++) {
-                const start_fort = this.start_touch_forts[i];
-                moves.push({ game_id: this.session.game_id, faction_id: this.currentField.player_faction_index, start_fort_id: this.currentField.forts.indexOf(start_fort), end_fort_id: this.currentField.forts.indexOf(this.end_touch_fort) });
-                if (start_fort.faction === this.currentField.player_faction()) {
-                    if (start_fort === this.end_touch_fort) {
-                        start_fort.unsend_units();
-                    }
-                    else {
-                        start_fort.send_units(this.end_touch_fort);
+            if (this.end_touch_fort.check_collision(this.get_cursor())) {
+                const moves = [];
+                for (let i = 0; i < this.start_touch_forts.length; i++) {
+                    const start_fort = this.start_touch_forts[i];
+                    moves.push({ game_id: this.session.game_id, faction_id: this.currentField.player_faction_index, start_fort_id: this.currentField.forts.indexOf(start_fort), end_fort_id: this.currentField.forts.indexOf(this.end_touch_fort) });
+                    if (start_fort.faction === this.currentField.player_faction()) {
+                        if (start_fort === this.end_touch_fort) {
+                            start_fort.unsend_units();
+                        }
+                        else {
+                            start_fort.send_units(this.end_touch_fort);
+                        }
                     }
                 }
-            }
-            if (this.session.registered()) {
-                if (!this.session.is_host) {
-                    this.session.post_moves(moves);
+                if (this.session.registered()) {
+                    if (!this.session.is_host) {
+                        this.session.post_moves(moves);
+                    }
                 }
             }
             this.end_touch_fort = null;
@@ -1345,32 +1353,40 @@ class Game {
             this.game_over = this.is_game_over();
         }
     }
+    get_cursor() {
+        const fort_dim = this.currentField.fort_dim;
+        return new SquareAABBCollidable(this.touch_listener.touchPos[0] - fort_dim / 2, this.touch_listener.touchPos[1] - fort_dim / 2, fort_dim, fort_dim);
+    }
     draw(dt, canvas, ctx) {
         if (!this.game_over) {
             this.currentField.draw(canvas, ctx);
             if (this.regular_control) {
-                if (this.mouse_down_tracker.mouseDown && this.start_touch_forts.length && this.end_touch_fort) {
+                if (this.mouse_down_tracker.mouseDown && this.start_touch_forts.length) {
                     ctx.strokeStyle = new RGB(125, 125, 125, 125).htmlRBGA();
                     ctx.lineWidth = 15;
                     ctx.beginPath();
+                    const fort_dim = this.currentField.fort_dim;
                     for (let i = 0; i < this.start_touch_forts.length; i++) {
                         const start_fort = this.start_touch_forts[i];
-                        const end_fort = this.end_touch_fort;
+                        let end_fort = this.get_cursor();
+                        if (this.end_touch_fort && this.end_touch_fort.check_collision(end_fort)) {
+                            end_fort = this.end_touch_fort;
+                        }
                         const odx = start_fort.mid_x() - end_fort.mid_x();
                         const ody = start_fort.mid_y() - end_fort.mid_y();
                         const dist = Math.sqrt(odx * odx + ody * ody);
                         const ndx = odx / dist;
                         const ndy = ody / dist;
-                        let sx = start_fort.mid_x() - ndx * this.currentField.fort_dim;
-                        let sy = start_fort.mid_y() - ndy * this.currentField.fort_dim;
-                        if (Math.sqrt(odx * odx + ody * ody) <= this.currentField.fort_dim) {
+                        let sx = start_fort.mid_x() - ndx * fort_dim;
+                        let sy = start_fort.mid_y() - ndy * fort_dim;
+                        if (Math.sqrt(odx * odx + ody * ody) <= fort_dim) {
                             sx = start_fort.mid_x();
                             sy = start_fort.mid_y();
                         }
                         ctx.moveTo(sx, sy);
-                        ctx.lineTo(end_fort.mid_x() + ndx * (this.currentField.fort_dim), end_fort.mid_y() + ndy * (this.currentField.fort_dim));
-                        ctx.moveTo(end_fort.mid_x() + this.currentField.fort_dim, end_fort.mid_y());
-                        ctx.arc(end_fort.mid_x(), end_fort.mid_y(), this.currentField.fort_dim, 0, 2 * Math.PI);
+                        ctx.lineTo(end_fort.mid_x() + ndx * (fort_dim), end_fort.mid_y() + ndy * (fort_dim));
+                        ctx.moveTo(end_fort.mid_x() + fort_dim, end_fort.mid_y());
+                        ctx.arc(end_fort.mid_x(), end_fort.mid_y(), fort_dim, 0, 2 * Math.PI);
                     }
                     ctx.stroke();
                 }

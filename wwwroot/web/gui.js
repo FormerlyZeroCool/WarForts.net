@@ -1298,6 +1298,7 @@ export class GuiTextBox {
                         }
                     }
                     this.drawInternalAndClear();
+                    break;
             }
         }
     }
