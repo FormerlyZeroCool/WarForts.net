@@ -20,8 +20,8 @@ app.UseStaticFiles();
 app.UseEndpoints(endpoints =>
 {
     endpoints.MapControllers();
-    app.MapGet("/register_session", () => {
-        var session_id = session_manager.register_session();
+    app.MapGet("/register_session", (HttpContext ctx) => {
+        var session_id = session_manager.register_session(ctx.Connection.RemoteIpAddress);
         var game = games_manager.register_game(session_id);
         return game;
     });
@@ -43,7 +43,6 @@ app.UseEndpoints(endpoints =>
         var game_id = data[1];
         var maybe_game = games_manager.attempt_join_game(session_id, game_id);
         var arr = new Int32[2];
-
         arr[0] = maybe_game != null ? maybe_game.game_id : -1;
         
         arr[1] = maybe_game != null ? maybe_game.guests.Count() + 1 : 1;
@@ -51,6 +50,7 @@ app.UseEndpoints(endpoints =>
         if(maybe_game != null && maybe_game.host_id == session_id)
         {
             arr[1] = 1;
+            arr[0] = game_id;
         }
 
         return arr;

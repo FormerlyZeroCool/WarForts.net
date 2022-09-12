@@ -613,11 +613,10 @@ class BattleField {
         //then traveling unit info 
         //total units then per unit 14 bits for x and y, and 3 bits for faction, and 1 bit for whether or not to render
         //barriers 14 bits for x and y, 4 bits for faction
-        const data = new Uint32Array(file_size);
-        /*for(let i = 0; i < file_size; i++)
-        {
+        const data = [];
+        for (let i = 0; i < file_size; i++) {
             data.push(-1);
-        }*/
+        }
         const faction_map = this.get_faction_index_map();
         const fort_map = this.get_fort_index_map();
         data[0] = file_size;
@@ -1113,8 +1112,8 @@ class Session {
         return await __classPrivateFieldGet(this, _Session_instances, "m", _Session_join_random_game_r).call(this);
     }
     async post_game_state() {
-        const game = { state: this.local_game.currentField.encode_display_data_state(), game_id: this.game_id, host_id: this.id };
-        return await logBinaryToServer(game, "/save_game_state");
+        const game = { state: this.local_game.currentField.encode_display_data_state(), game_id: this.game_id, host_id: this.id, guests: [] };
+        return await logToServer(game, "/save_game_state");
     }
     post_moves(moves) {
         logToServer(moves, "/register_moves");
@@ -1142,7 +1141,7 @@ _Session_instances = new WeakSet(), _Session_join_random_game_r = async function
     if (res) {
         const game_id = res[0];
         const faction_id = res[1];
-        if (game_id !== -1) {
+        if (game_id && game_id !== -1) {
             this.game_id = game_id;
             this.is_host = faction_id === 1;
             this.local_game.currentField.player_faction_index = faction_id;
@@ -1253,6 +1252,7 @@ class Game {
                 if (point.check_collision(barrier)) {
                     this.currentField.unused_barriers.push(this.currentField.barriers.splice(i, 1)[0]);
                     collision = true;
+                    navigator.vibrate(50);
                     break;
                 }
             }
@@ -1263,15 +1263,19 @@ class Game {
         this.touch_listener.registerCallBack("touchstart", (e) => is_player(e) && this.regular_control, (event) => {
             this.start_touch_forts.splice(0, this.start_touch_forts.length);
             const nearest_fort = this.currentField.find_nearest_fort(event.touchPos[0], event.touchPos[1]);
-            if (nearest_fort.faction === this.currentField.player_faction())
+            if (nearest_fort.faction === this.currentField.player_faction()) {
                 this.start_touch_forts.push(nearest_fort);
+                navigator.vibrate(50);
+            }
         });
         const end_selection_possible = (e) => this.start_touch_forts.length !== 0;
         this.touch_listener.registerCallBack("touchmove", (e) => end_selection_possible(e) && this.joint_attack_mode && this.regular_control, (event) => {
             const nearest_fort = this.currentField.find_nearest_fort(event.touchPos[0], event.touchPos[1]);
             this.end_touch_fort = nearest_fort;
-            if (nearest_fort.faction === this.currentField.player_faction() && nearest_fort.check_collision(this.get_cursor()))
+            if (nearest_fort.faction === this.currentField.player_faction() && nearest_fort.check_collision(this.get_cursor())) {
                 this.start_touch_forts.push(nearest_fort);
+                navigator.vibrate(50);
+            }
         });
         this.touch_listener.registerCallBack("touchmove", (e) => end_selection_possible(e) && !this.joint_attack_mode && this.regular_control, (event) => {
             const nearest_fort = this.currentField.find_nearest_fort(event.touchPos[0], event.touchPos[1]);
@@ -1280,6 +1284,7 @@ class Game {
         this.touch_listener.registerCallBack("touchend", (e) => end_selection_possible(e) && this.regular_control, (event) => {
             this.end_touch_fort = this.currentField.find_nearest_fort(event.touchPos[0], event.touchPos[1]);
             if (this.end_touch_fort.check_collision(this.get_cursor())) {
+                navigator.vibrate(50);
                 const moves = [];
                 for (let i = 0; i < this.start_touch_forts.length; i++) {
                     const start_fort = this.start_touch_forts[i];
