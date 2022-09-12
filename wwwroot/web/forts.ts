@@ -618,7 +618,6 @@ class FieldMap {
                         barrier.colliding = 30;
                         unit.attack(barrier);
                         barrier.attack(unit);
-                        unit.render = true;
                         if(barrier.hp <= 0){
                             const barrier_index = this.field.barriers.indexOf(barrier);
                             if(barrier_index !== -1)
