@@ -194,8 +194,8 @@ class Unit extends SquareAABBCollidable implements Attackable {
         else
         {
             const delta = this.faction.unit_travel_speed * delta_time * 1/1000;
-            const dy:number = (-this.mid_y() + this.targetFort.mid_y()) * 1 / this.faction.battleField.host_vertical_ratio;
-            const dx:number = (-this.mid_x() + this.targetFort.mid_x()) * 1 / this.faction.battleField.host_horizontal_ratio;
+            const dy:number = (-this.mid_y() + this.targetFort.mid_y()) * this.faction.battleField.host_vertical_ratio;
+            const dx:number = (-this.mid_x() + this.targetFort.mid_x()) * this.faction.battleField.host_horizontal_ratio;
             const dist = Math.sqrt(dy*dy + dx*dx);
             const norm_dy = dy / dist;
             const norm_dx = dx / dist;
