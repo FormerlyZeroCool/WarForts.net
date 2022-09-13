@@ -1647,7 +1647,6 @@ class Game {
                 {
                     this.currentField.unused_barriers.push(this.currentField.barriers.splice(i, 1)[0]);
                     collision = true;
-                    navigator.vibrate(50);
                     break;
                 }
             }
@@ -1663,7 +1662,6 @@ class Game {
             if(nearest_fort.faction === this.currentField.player_faction())
             {
                 this.start_touch_forts.push(nearest_fort);
-                navigator.vibrate(50);
             }
         });
         const end_selection_possible = (e:any) => this.start_touch_forts.length !== 0;
@@ -1673,7 +1671,6 @@ class Game {
             if(nearest_fort.faction === this.currentField.player_faction() && nearest_fort.check_collision(this.get_cursor()))
             {
                 this.start_touch_forts.push(nearest_fort);
-                navigator.vibrate(50);
             }
         });
         this.touch_listener.registerCallBack("touchmove", (e:any) => end_selection_possible(e) && !this.joint_attack_mode && this.regular_control, (event:any) =>{
@@ -1684,7 +1681,6 @@ class Game {
             this.end_touch_fort = this.currentField.find_nearest_fort(event.touchPos[0], event.touchPos[1]);
             if(this.end_touch_fort.check_collision(this.get_cursor()))
             {
-                navigator.vibrate(50);
                 const moves:Move[] = [];
                 for(let i = 0; i < this.start_touch_forts.length; i++)
                 {
