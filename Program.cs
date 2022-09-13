@@ -25,7 +25,7 @@ app.UseEndpoints(endpoints =>
         var game = games_manager.register_game(session_id);
         return game;
     });
-    app.MapPost("/unregister_session", (Int32[] data) => {
+    app.MapPost("/unregister_session", (Int32[] data, HttpContext ctx) => {
         Int32 session_id = data[0];
         games_manager.unregister_session(session_id);
         return data;
