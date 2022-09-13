@@ -1717,7 +1717,7 @@ class Game {
             this.joint_attack_mode = !this.joint_attack_mode;
         });
         this.currentField.update_state(1);
-        window.addEventListener("load", () => setTimeout(() => this.currentField.draw(canvas, canvas.getContext("2d")!), 250));
+        window.addEventListener("load", () => setTimeout(() => this.currentField.draw(canvas, canvas.getContext("2d")!), 750));
 
         this.server_sync = new ServerSync(this.session);
     }
