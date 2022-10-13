@@ -55,7 +55,7 @@ function manhattan_distance(a, b) {
 class Faction {
     constructor(name, color, fort_reproduction_unit_limit, base_unit_speed, load_image = false) {
         this.name = name;
-        this.attack = 4 * (1 + random() / 5);
+        this.attack = 9 * (1 + random() / 5);
         this.avg_move_value = 0;
         this.sum_move_points = 400 * (0.5 + random());
         this.count_moves = 1;
@@ -1155,6 +1155,8 @@ class Session {
     }
 }
 _Session_instances = new WeakSet(), _Session_join_random_game_r = async function _Session_join_random_game_r(tries = 0, max_tries = 50) {
+    if (!this.registered())
+        this.re_register_session();
     const res = await logToServer([this.id, this.game_id], '/request_join_random_game');
     if (res) {
         const game_id = res[0];
